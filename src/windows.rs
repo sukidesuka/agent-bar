@@ -515,7 +515,12 @@ impl App {
         GdiFlush();
         let colors = std::slice::from_raw_parts_mut(color.pixels, color.len);
         let coverage = std::slice::from_raw_parts(mask.pixels, mask.len);
-        for (pixel, mask_pixel) in colors.chunks_exact_mut(4).zip(coverage.chunks_exact(4)) {
+        for (pixel, mask_pixel) in colors
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(coverage.as_chunks::<4>().0)
+        {
             let alpha = mask_pixel[0];
             for channel in &mut pixel[..3] {
                 *channel = (*channel).min(alpha);
