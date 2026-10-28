@@ -1,0 +1,20 @@
+/target/
+/dist/
+*.log
+
+# Local configuration and credentials
+/.agents/
+/.aws/
+/.codex/
+.env
+.env.*
+!.env.example
+
+# Local diagnostic snapshots and Python cache
+/snapshot*.json
+__pycache__/
+*.py[cod]
+
+# OS metadata
+.DS_Store
+Thumbs.db

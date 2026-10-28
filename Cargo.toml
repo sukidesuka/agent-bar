@@ -1,0 +1,23 @@
+[package]
+name = "agentbar"
+version = "0.1.5"
+edition = "2024"
+description = "A small Windows taskbar companion for local Codex usage and activity"
+license = "MIT"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+time = { version = "0.3", features = ["parsing", "formatting"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_LibraryLoader",
+  "Win32_System_Threading", "Win32_UI_HiDpi", "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging", "Win32_System_Registry", "Win32_Security"
+] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
