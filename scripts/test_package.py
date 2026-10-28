@@ -32,7 +32,7 @@ class PackageTests(unittest.TestCase):
                 self.assertEqual(set(bundle.namelist()), {"agentbar.exe", "start-agentbar.cmd", "README.md"})
                 self.assertEqual(bundle.read("agentbar.exe"), payload)
                 self.assertIn(b"\r\n", bundle.read("start-agentbar.cmd"))
-                self.assertEqual(bundle.read("README.md").decode("utf-8"), "余量面板运行说明\n")
+                self.assertEqual(bundle.read("README.md"), (root / "README.md").read_bytes())
             sums = (root / "dist/SHA256SUMS.txt").read_text(encoding="utf-8").splitlines()
             self.assertEqual(len(sums), 2)
             for line in sums:

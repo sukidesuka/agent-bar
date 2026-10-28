@@ -13,6 +13,6 @@
 - 本环境可用 Rust stable、MinGW 和 `x86_64-pc-windows-gnu` target。检查：`cargo test`、`cargo clippy --all-targets -- -D warnings`、`cargo clippy --target x86_64-pc-windows-gnu -- -D warnings`。构建：`cargo build --release --target x86_64-pc-windows-gnu`。
 - 运行包由 `python3 scripts/package.py` 生成，只包含 Windows 可执行文件、启动脚本和 README，并生成 EXE/ZIP 的 `SHA256SUMS.txt`。CI 用 `--binary <exe路径>` 指定准确产物，避免选择旧的交叉编译结果；打包检查：`python3 -m unittest discover -s scripts -p 'test_*.py'`。
 - GitHub 工作流 `.github/workflows/build-release.yml` 在 `main`/PR 上检查并构建 Windows x64，在推送 `v<版本号>` 标签时发布 Release；标签必须匹配 `Cargo.toml`。手动触发时 `tag` 留空仅构建，填写已有标签则构建并发布该版本。CI 使用 MSVC 和静态 CRT，内置 `GITHUB_TOKEN` 仅在发布任务拥有 `contents: write`；已发布版本不覆盖，未完成草稿可续传。
-- `.gitattributes` 统一源码和文档为 LF，Windows `.cmd`/`.bat` 启动脚本为 CRLF；避免由全局 `core.autocrlf` 产生跨平台换行变更。
+- `.gitattributes` 统一源码和文档为 LF，Windows `.cmd`/`.bat` 启动脚本为 CRLF；避免由全局 `core.autocrlf` 产生跨平台换行变更。打包测试比较原文件字节，不能假设 Windows Python 创建的文本夹具使用 LF。
 - 可用 `cargo run -- --dump --logs-only --codex-home <目录>` 验证数据，不启动桌面界面。不要为常规验证启动开发环境或桌面程序。
 - 不把真实会话、用量快照或用户路径写入源码、测试夹具和发布包。`dist/` 与 `target/` 是生成产物。
