@@ -295,14 +295,19 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::io::Write;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
+
     fn fixture() -> (PathBuf, PathBuf) {
         let root = std::env::temp_dir().join(format!(
-            "agentbar-test-{}-{}",
+            "agentbar-test-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
         ));
         let dir = root.join("sessions/2026/10/28");
         fs::create_dir_all(&dir).unwrap();

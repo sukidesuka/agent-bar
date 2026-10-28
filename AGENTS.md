@@ -4,6 +4,7 @@
 - Rust Windows 常驻小程序；Win32 窗口和 GDI 双缓冲绘制使用 `windows-sys`，不使用 WebView/.NET。界面文案使用中文。
 - Windows 窗口只在 UI 线程操作。窗口上下文保存在 `RefCell<App>`，通过 `try_borrow_mut` 防止 Win32 同步重入时重复借用；消息循环期间不得持有可变借用。
 - BGRA 像素按四字节分组使用 `as_chunks::<4>()` / `as_chunks_mut::<4>()`；CI 跟随 Rust stable，Rust 1.99 的 Clippy 会拒绝固定分组的 `chunks_exact` 写法。
+- 并行测试的临时目录必须含原子序号等唯一标识，不能仅依赖 `SystemTime` 时间戳；Windows 时钟粒度可能让同时执行的用例使用同一路径。
 - AgentBar 不直接访问 OpenAI、不读取认证文件。仅允许通过已有 Codex 服务的 `app-server proxy` 查询用量和任务；不得自动启动 App Server、创建/恢复会话或响应审批。
 - 会话日志增量读取是后备路径。额度必须保留来源与采样时间；缺失/过期不能当成 0%。日志任务状态须标记推测；无活动 180 秒后改为未知。只从明确服务状态显示等待审批。
 - 主屏底部任务栏、图标居中且小组件关闭是当前支持的覆盖布局；其他布局保留托盘入口。
