@@ -60,6 +60,27 @@ cargo build --release --target x86_64-pc-windows-gnu
 
 生成 `dist/` 运行包（Python 3.11+）：`python3 scripts/package.py`，Windows 上也可使用 `python scripts/package.py`。
 
+可用 `--binary <exe路径>` 指定准确的构建产物，例如 Windows 原生构建使用 `python scripts/package.py --binary target/x86_64-pc-windows-msvc/release/agentbar.exe`。脚本会同时生成 `SHA256SUMS.txt`，校验可执行文件与 ZIP 运行包。
+
+## GitHub Actions 自动编译与发布
+
+工作流位于 `.github/workflows/build-release.yml`：
+
+- 推送到 `main` 或提交 PR 时，自动进行格式检查、Clippy、Rust 测试、打包测试与 Windows x64 编译，产物保存在 Actions 页面的 `agentbar-windows-x64` 中。
+- 推送 `v<版本号>` 标签时，检查标签与 `Cargo.toml` 中的版本一致，构建成功后自动创建 GitHub Release，上传可执行文件、ZIP 运行包及 SHA-256 校验文件。带预发布后缀的版本会标记为 prerelease。
+- 可在 Actions → Windows build and release → Run workflow 手动执行。`tag` 留空只编译；填入已有版本标签会编译该标签对应的代码并发布。已发布的 Release 保持原样；上次中断留下的草稿会继续上传并发布。
+
+发布当前版本的步骤（先将工作流和源码提交、推送到 GitHub）：
+
+```bash
+git tag v0.1.5
+git push origin v0.1.5
+```
+
+后续发布前同步修改 `Cargo.toml` 和 `Cargo.lock` 的项目版本，再创建对应标签。工作流使用[内置 `GITHUB_TOKEN`](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token)，无需另配个人访问令牌。Windows 发布使用 MSVC 工具链并[静态链接 C 运行时](https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes)。
+
+## 本地数据诊断
+
 界面使用 `windows-sys` 调用 Win32/GDI，双缓冲绘制；不依赖 WebView 或 .NET。源码中不包含用户用量、会话和凭据。
 
 只检查一次真实数据，不启动桌面界面：

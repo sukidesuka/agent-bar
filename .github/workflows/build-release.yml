@@ -1,0 +1,149 @@
+name: Windows build and release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag, e.g. v0.1.5 (leave empty to only build)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && inputs.tag == '' }}
+
+jobs:
+  build:
+    name: Build Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CARGO_TERM_COLOR: always
+      RUSTFLAGS: -C target-feature=+crt-static
+    outputs:
+      tag: ${{ steps.metadata.outputs.tag }}
+      prerelease: ${{ steps.metadata.outputs.prerelease }}
+      archive: ${{ steps.metadata.outputs.archive }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Validate version and release tag
+        id: metadata
+        shell: python
+        env:
+          MANUAL_TAG: ${{ inputs.tag }}
+        run: |
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path('Cargo.toml').read_text(encoding='utf-8'))['package']['version']
+          if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?', version):
+              raise SystemExit(f'Invalid Cargo package version: {version!r}')
+          tag = os.environ.get('MANUAL_TAG', '')
+          if not tag and os.environ['GITHUB_REF_TYPE'] == 'tag':
+              tag = os.environ['GITHUB_REF_NAME']
+          if tag and tag != f'v{version}':
+              raise SystemExit(f'Tag {tag!r} must match Cargo.toml version v{version}')
+          prerelease = '-' in version.split('+', 1)[0]
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'tag={tag}\n')
+              output.write(f'prerelease={str(prerelease).lower()}\n')
+              output.write(f'archive=agentbar-{version}-windows-x64.zip\n')
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy --target x86_64-pc-windows-msvc --no-self-update
+
+      - name: Check formatting
+        run: cargo +stable fmt --all -- --check
+
+      - name: Lint
+        run: cargo +stable clippy --locked --all-targets --target x86_64-pc-windows-msvc -- -D warnings
+
+      - name: Run Rust tests
+        run: cargo +stable test --locked --target x86_64-pc-windows-msvc
+
+      - name: Run packaging tests
+        run: python -m unittest discover -s scripts -p 'test_*.py'
+
+      - name: Build release executable
+        run: cargo +stable build --locked --release --target x86_64-pc-windows-msvc
+
+      - name: Package Windows executable
+        run: python scripts/package.py --binary target/x86_64-pc-windows-msvc/release/agentbar.exe
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: agentbar-windows-x64
+          path: |
+            dist/agentbar.exe
+            dist/${{ steps.metadata.outputs.archive }}
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: needs.build.outputs.tag != '' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ needs.build.outputs.tag }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: agentbar-windows-x64
+          path: dist
+
+      - name: Verify release assets
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS.txt
+
+      - name: Create release or resume an unfinished draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+          ARCHIVE: ${{ needs.build.outputs.archive }}
+        run: |
+          set -euo pipefail
+          assets=(dist/agentbar.exe "dist/$ARCHIVE" dist/SHA256SUMS.txt)
+          if draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' 2>/dev/null); then
+            if [[ "$draft" == "false" ]]; then
+              echo "Release $RELEASE_TAG is already published; leaving its assets unchanged."
+              exit 0
+            fi
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease="$PRERELEASE"
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" \
+              --verify-tag --title "AgentBar $RELEASE_TAG" \
+              --generate-notes --prerelease="$PRERELEASE"
+          fi

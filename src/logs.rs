@@ -391,6 +391,7 @@ mod tests {
         file.write_all(b"\n").unwrap();
         file.write_all(line("event_msg", json!({"type":"task_complete","turn_id":"a"})).as_bytes())
             .unwrap();
+        drop(file);
         reader.scan_at(1793145602);
         assert_eq!(
             reader.scan_at(1793145603).tasks[0].status,
